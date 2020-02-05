@@ -13,21 +13,23 @@ namespace Rcon.Client
     public class ConnectionStreamOperator : IConnectionStreamOperator
     {
         private bool disposed;
-        private int messageCounter;
+        private static int currentId = 0;
         private static readonly byte[] PADDING = new byte[] { 0x0, 0x0 };
         private readonly BinaryReader _reader;
         private readonly BinaryWriter _writer;
+        private readonly ReaderWriterLockSlim _streamLock = new ReaderWriterLockSlim();
         private readonly AutoResetEvent _stopEvent = new AutoResetEvent(false);
         private readonly AutoResetEvent _stoppedEvent = new AutoResetEvent(false);
         private readonly Thread _readerThread;
-        private readonly ConcurrentQueue<(int MessageCounter, byte[] Data)> _readMessages = new ConcurrentQueue<(int MessageCounter, byte[] Data)>();
-        private readonly ReaderWriterLockSlim _streamLock = new ReaderWriterLockSlim();
+        private readonly ConcurrentDictionary<int, RconResponse> _responses = new ConcurrentDictionary<int, RconResponse>();
+
         public ConnectionStreamOperator(NetworkStream stream)
         {
             stream.ThrowIfNull();
-            messageCounter = 0;
+            
             _reader = new BinaryReader(stream);
             _writer = new BinaryWriter(stream);
+            
             _readerThread = new Thread(CheckForData);
             _readerThread.Start();
         }
@@ -46,6 +48,7 @@ namespace Rcon.Client
             {
                 _stopEvent.Set();
                 _stoppedEvent.WaitOne();
+                
                 _reader.Dispose();
                 _writer.Dispose();
                 
@@ -55,88 +58,42 @@ namespace Rcon.Client
 
         public IRconResponse GetResponse(int commandId)
         {
-            _streamLock.EnterReadLock();
-            var allBytes = new List<byte>();
+            var response = _responses[commandId];
 
-            try
+            while (!response.Complete)
             {
-                (int MessageCounter, byte[] Data) msg = (default, default);
-                
-                int loops = 0;
-
-                while (_readMessages.TryDequeue(out msg) && loops < 100)
-                {
-                    loops++;
-
-                    if (msg.MessageCounter != commandId)
-                    {
-                        _readMessages.Enqueue(msg);
-                        continue;
-                    }
-
-                    allBytes.AddRange(msg.Data);
-                }
-            }
-            finally
-            {
-                _streamLock.ExitReadLock();
+                Thread.Sleep(5);
             }
 
-            return new RconResponse(allBytes.ToArray());
+            _responses.TryRemove(commandId, out response);
+
+            return response;
         }
 
         public int WriteMessage(IRconCommand command)
         {
             _streamLock.EnterWriteLock();
-            
-            int id = messageCounter++;
+
+            int id = currentId++;
+
+            _responses.TryAdd(id, new RconResponse(id));
 
             try
             {
-                switch (command.CommandType)
-                {
-                    case CommandType.Command:
-                        SendCommand(command.Text, id);
-                        break;
-                    case CommandType.Login:
-                        SendLogin(command.Text, id);
-                        break;
-                    default:
-                        throw new InvalidOperationException("Cannot handle this type of command.");
-                }
+                var packet = RconPacket.From(id, command);
+                var terminator = RconPacket.CommandTerminator(id);
+
+                _writer.Write(packet.GetBytes());
+                _writer.Flush();
+                _writer.Write(terminator.GetBytes());
+                _writer.Flush();
+
+                return id;
             }
             finally
             {
                 _streamLock.ExitWriteLock();
             }
-
-            return id;
-        }
-
-        private void SendCommand(string text, int commandId)
-        {
-            var msg = new List<byte>();
-            msg.AddRange(BitConverter.GetBytes(10 + Encoding.UTF8.GetByteCount(text)));
-            msg.AddRange(BitConverter.GetBytes(commandId));
-            msg.AddRange(BitConverter.GetBytes((int)CommandType.Command));
-            msg.AddRange(Encoding.UTF8.GetBytes(text));
-            msg.AddRange(PADDING);
-
-            _writer.Write(msg.ToArray());
-            _writer.Flush();
-        }
-
-        private void SendLogin(string password, int commandId)
-        {
-            var msg = new List<byte>();
-            msg.AddRange(BitConverter.GetBytes(10 + Encoding.UTF8.GetByteCount(password)));
-            msg.AddRange(BitConverter.GetBytes(commandId));
-            msg.AddRange(BitConverter.GetBytes((int)CommandType.Login));
-            msg.AddRange(ASCIIEncoding.UTF8.GetBytes(password));
-            msg.AddRange(PADDING);
-
-            _writer.Write(msg.ToArray());
-            _writer.Flush();
         }
 
         private void CheckForData()
@@ -145,13 +102,9 @@ namespace Rcon.Client
             {
                 try
                 {
-                    var len = _reader.ReadInt32();
-                    var messageId = _reader.ReadInt32();
-                    var type = _reader.ReadInt32();
-                    var data = len > 10 ? _reader.ReadBytes(len - 10) : new byte[] { };
-                    var pad = _reader.ReadBytes(2);
+                    var packet = RconPacket.From(_reader);
 
-                    _readMessages.Enqueue((messageId, data));
+                    _responses[packet.CommandId].AddPacket(packet);
                 }
                 catch
                 {
@@ -160,6 +113,23 @@ namespace Rcon.Client
             }
 
             _stoppedEvent.Set();
+        }
+
+        public Task<IRconResponse> GetResponseAsync(int commandId)
+            => GetResponseAsync(commandId, default);
+
+        public async Task<IRconResponse> GetResponseAsync(int commandId, CancellationToken cancellationToken)
+        {
+            var response = _responses[commandId];
+
+            while (!response.Complete)
+            {
+                await Task.Delay(5, cancellationToken);
+            }
+
+            _responses.TryRemove(commandId, out response);
+
+            return response;
         }
     }
 }

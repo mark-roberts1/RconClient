@@ -89,7 +89,7 @@ namespace Rcon.Client
                     await Task.Delay(5, cancellationToken);
                 }
             }
-            catch (TaskCanceledException ex)
+            catch (TaskCanceledException)
             {
                 cancellationRequested = true;
             }

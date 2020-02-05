@@ -6,7 +6,7 @@ namespace Rcon.Client
 {
     public interface IRconCommand
     {
-        CommandType CommandType { get; }
+        int CommandType { get; }
         string Text { get; }
     }
 }

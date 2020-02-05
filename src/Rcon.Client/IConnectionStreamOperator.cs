@@ -10,6 +10,8 @@ namespace Rcon.Client
     public interface IConnectionStreamOperator : IDisposable
     {
         IRconResponse GetResponse(int commandId);
+        Task<IRconResponse> GetResponseAsync(int commandId);
+        Task<IRconResponse> GetResponseAsync(int commandId, CancellationToken cancellationToken);
         int WriteMessage(IRconCommand command);
     }
 }
