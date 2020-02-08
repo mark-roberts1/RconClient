@@ -14,7 +14,6 @@ namespace Rcon.Client
     {
         private bool disposed;
         private static int currentId = 0;
-        private static readonly byte[] PADDING = new byte[] { 0x0, 0x0 };
         private readonly BinaryReader _reader;
         private readonly BinaryWriter _writer;
         private readonly ReaderWriterLockSlim _streamLock = new ReaderWriterLockSlim();
@@ -23,7 +22,7 @@ namespace Rcon.Client
         private readonly Thread _readerThread;
         private readonly ConcurrentDictionary<int, RconResponse> _responses = new ConcurrentDictionary<int, RconResponse>();
 
-        public ConnectionStreamOperator(NetworkStream stream)
+        public ConnectionStreamOperator(Stream stream)
         {
             stream.ThrowIfNull();
             

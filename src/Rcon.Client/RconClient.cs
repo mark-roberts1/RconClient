@@ -15,12 +15,12 @@ namespace Rcon.Client
         /// Initializes an instance of <see cref="RconClient"/>
         /// </summary>
         /// <param name="connection">An RCON connection</param>
-        public RconClient(IRconConnection connection, IConnectionStreamOperator streamOperator = default)
+        public RconClient(IRconConnection connection)
         {
             Connection = connection.ThrowIfNull();
         }
 
-        public RconClient(string serverAddress, int port, IConnectionStreamOperator streamOperator = default)
+        public RconClient(string serverAddress, int port)
         {
             Connection = new RconConnection(serverAddress, port);
         }

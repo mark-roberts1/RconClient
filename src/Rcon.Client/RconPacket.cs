@@ -8,10 +8,20 @@ namespace Rcon.Client
     /// <summary>
     /// Designed per the spec from https://developer.valvesoftware.com/wiki/Source_RCON_Protocol
     /// </summary>
-    internal struct RconPacket
+    public struct RconPacket
     {
         public RconPacket(int commandId, int packetType, string command)
         {
+            if (packetType != CommandTypes.SERVERDATA_AUTH
+                && packetType != CommandTypes.SERVERDATA_AUTHRESPONSE
+                && packetType != CommandTypes.SERVERDATA_EXECCOMMAND
+                && packetType != CommandTypes.SERVERDATA_RESPONSE_VALUE)
+            {
+                throw new ArgumentException("packetType was not recognized.");
+            }
+
+            command = command ?? string.Empty;
+
             // From the spec:
             // Since the only one of these values that can change in length is the body, 
             // an easy way to calculate the size of a packet is to find the byte-length 
@@ -42,8 +52,8 @@ namespace Rcon.Client
             // byte size will be Size + 4, since Size does not include itself.
             var bytes = new byte[Size + 4];
             var sizeBytes = BitConverter.GetBytes(Size);
-            var commandIdBytes = BitConverter.GetBytes(Size);
-            var packetTypeBytes = BitConverter.GetBytes(Size);
+            var commandIdBytes = BitConverter.GetBytes(CommandId);
+            var packetTypeBytes = BitConverter.GetBytes(PacketType);
             var bodyBytes = Encoding.UTF8.GetBytes(Body);
 
             // Size
@@ -81,23 +91,32 @@ namespace Rcon.Client
 
         public static RconPacket CommandTerminator(int commandId)
         {
-            return new RconPacket(commandId, CommandTypes.SERVERDATA_RESPONSE_VALUE, null);
+            return new RconPacket(commandId, CommandTypes.SERVERDATA_RESPONSE_VALUE, string.Empty);
         }
 
         public static RconPacket From(int commandId, IRconCommand rconCommand)
         {
+            rconCommand.ThrowIfNull();
+
             return new RconPacket(commandId, rconCommand.CommandType, rconCommand.Text);
         }
 
         public static RconPacket From(BinaryReader reader)
         {
-            var len = reader.ReadInt32();
-            var commandId = reader.ReadInt32();
-            var type = reader.ReadInt32();
-            var data = len > 10 ? reader.ReadBytes(len - 10) : new byte[] { };
-            var pad = reader.ReadBytes(2);
+            try
+            {
+                var len = reader.ReadInt32();
+                var commandId = reader.ReadInt32();
+                var type = reader.ReadInt32();
+                var data = len > 10 ? reader.ReadBytes(len - 10) : new byte[] { };
+                var pad = reader.ReadBytes(2);
 
-            return new RconPacket(commandId, type, Encoding.UTF8.GetString(data));
+                return new RconPacket(commandId, type, Encoding.UTF8.GetString(data));
+            }
+            catch (Exception ex)
+            {
+                throw new PacketMalformedException(ex);
+            }
         }
     }
 }
