@@ -101,6 +101,8 @@ namespace Rcon.Client
             {
                 try
                 {
+                    _streamLock.EnterReadLock();
+
                     var packet = RconPacket.From(_reader);
 
                     _responses[packet.CommandId].AddPacket(packet);
@@ -108,6 +110,10 @@ namespace Rcon.Client
                 catch
                 {
                     continue;
+                }
+                finally
+                {
+                    _streamLock.ExitReadLock();
                 }
             }
 
