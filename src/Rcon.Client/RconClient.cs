@@ -20,9 +20,36 @@ namespace Rcon.Client
             Connection = connection.ThrowIfNull();
         }
 
+        /// <summary>
+        /// Initializes an instance of <see cref="RconClient"/>
+        /// </summary>
+        /// <param name="serverAddress">address of the server (IP or URL)</param>
+        /// <param name="port">TCP port</param>
         public RconClient(string serverAddress, int port)
         {
             Connection = new RconConnection(serverAddress, port);
+        }
+
+        private static readonly object _logLock = new object();
+        private Action<string> logAction;
+        public Action<string> LogAction
+        {
+            get
+            {
+                lock (_logLock)
+                {
+                    return logAction;
+                }
+            }
+            set
+            {
+                lock (_logLock)
+                {
+                    logAction = value;
+                }
+
+                Connection.LogAction = value;
+            }
         }
 
         /// <inheritdoc/>
@@ -47,16 +74,16 @@ namespace Rcon.Client
         }
 
         /// <inheritdoc/>
-        public IRconResponse ExecuteCommand(IRconCommand command)
+        public IRconResponse ExecuteCommand(IRconCommand command, int timeout = 10000)
         {
             if (!Connection.IsOpen)
                 Connection.Open();
 
             var op = Connection.StreamOperator;
 
-            var id = op.WriteMessage(command);
+            var id = op.Write(command);
 
-            return op.GetResponse(id);
+            return op.GetResponse(id, timeout);
         }
 
         /// <inheritdoc/>
@@ -67,13 +94,13 @@ namespace Rcon.Client
         public async Task<IRconResponse> ExecuteCommandAsync(IRconCommand command, CancellationToken cancellationToken)
         {
             if (!Connection.IsOpen)
-                await Connection.OpenAsync(cancellationToken);
+                Connection.Open();
 
             var op = Connection.StreamOperator;
 
-            var id = op.WriteMessage(command);
+            var id = op.Write(command);
 
-            return op.GetResponse(id);
+            return await op.GetResponseAsync(id, cancellationToken);
         }
     }
 }

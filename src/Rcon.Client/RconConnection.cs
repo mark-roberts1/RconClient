@@ -7,12 +7,38 @@ using System.Threading.Tasks;
 
 namespace Rcon.Client
 {
+    /// <inheritdoc/>
     public class RconConnection : IRconConnection
     {
         private readonly string _serverAddress;
         private readonly int _port;
         private readonly TcpClient _tcpClient;
+
         private bool disposed;
+
+        private static readonly object _logLock = new object();
+        private Action<string> logAction;
+
+        /// <inheritdoc/>
+        public Action<string> LogAction 
+        {
+            get
+            {
+                lock (_logLock)
+                {
+                    return logAction;
+                }
+            }
+            set
+            {
+                lock (_logLock)
+                {
+                    logAction = value;
+                }
+
+                if (StreamOperator != null) StreamOperator.LogAction = value;
+            } 
+        }
 
         public RconConnection(string serverAddress, int port)
         {
@@ -25,8 +51,10 @@ namespace Rcon.Client
 
         public bool IsOpen => _tcpClient.Connected;
 
+        /// <inheritdoc/>
         public IConnectionStreamOperator StreamOperator { get; private set; }
 
+        /// <inheritdoc/>
         public void Close()
         {
             StreamOperator?.Dispose();
@@ -40,7 +68,7 @@ namespace Rcon.Client
             GC.SuppressFinalize(this);
         }
 
-        public virtual void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (disposed) return;
 
@@ -48,51 +76,35 @@ namespace Rcon.Client
             {
                 Close();
                 _tcpClient.Dispose();
-
+                LogAction = null;
                 disposed = true;
             }
         }
 
+        /// <inheritdoc/>
         public void Open()
         {
+            LogAction?.Invoke($"Connecting to {_serverAddress}:{_port}");
+
             _tcpClient.Connect(_serverAddress, _port);
-            StreamOperator = new ConnectionStreamOperator(_tcpClient.GetStream());
+
+            StreamOperator = new ConnectionStreamOperator((RconStream)_tcpClient.GetStream())
+            {
+                LogAction = LogAction
+            };
         }
 
-        public async Task OpenAsync(CancellationToken cancellationToken)
+        /// <inheritdoc/>
+        public async Task OpenAsync()
         {
-            bool connected = false;
-            bool cancellationRequested = false;
+            LogAction?.Invoke($"Connecting to {_serverAddress}:{_port}");
 
-            var state = new object();
+            await _tcpClient.ConnectAsync(_serverAddress, _port);
 
-            AsyncCallback callback = (result) =>
+            StreamOperator = new ConnectionStreamOperator((RconStream)_tcpClient.GetStream())
             {
-                connected = true;
-                _tcpClient.EndConnect(result);
-
-                if (cancellationRequested)
-                {
-                    _tcpClient.Close();
-                    return;
-                }
-
-                StreamOperator = new ConnectionStreamOperator(_tcpClient.GetStream());
+                LogAction = LogAction
             };
-
-            _tcpClient.BeginConnect(_serverAddress, _port, callback, state);
-
-            try
-            {
-                while (!connected)
-                {
-                    await Task.Delay(5, cancellationToken);
-                }
-            }
-            catch (TaskCanceledException)
-            {
-                cancellationRequested = true;
-            }
         }
     }
 }

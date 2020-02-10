@@ -63,6 +63,7 @@ namespace Rcon.Client
             }
         }
 
+        /// <inheritdoc/>
         public string ResponseText
         {
             get
@@ -74,7 +75,7 @@ namespace Rcon.Client
                     {
                         while (_packets.TryDequeue(out RconPacket rconPacket) && !rconPacket.IsResponseTerminator)
                         {
-                            writer.Write(rconPacket);
+                            writer.Write(rconPacket.Body);
                         }
 
                         writer.Flush();

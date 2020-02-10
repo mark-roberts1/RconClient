@@ -41,9 +41,7 @@ namespace Rcon.Client
         {
             get
             {
-                var body = Encoding.UTF8.GetBytes(Body);
-
-                return body == BitConverter.GetBytes(0x0000000100000000);
+                return Body == "Unknown request 0";
             }
         }
 

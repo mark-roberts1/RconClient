@@ -4,24 +4,27 @@ using System.Text;
 
 namespace Rcon.Client
 {
-    /// <summary>
-    /// Represents a command to issue over an RCON connection.
-    /// </summary>
+    /// <inheritdoc/>
     public class RconCommand : IRconCommand
     {
         internal RconCommand(int commandType, string text)
         {
+            if (commandType != CommandTypes.SERVERDATA_AUTH
+                && commandType != CommandTypes.SERVERDATA_AUTHRESPONSE
+                && commandType != CommandTypes.SERVERDATA_EXECCOMMAND
+                && commandType != CommandTypes.SERVERDATA_RESPONSE_VALUE)
+            {
+                throw new ArgumentException("packetType was not recognized.");
+            }
+
             CommandType = commandType;
             Text = text;
         }
 
-        /// <summary>
-        /// The packet type to send
-        /// </summary>
+        /// <inheritdoc/>
         public int CommandType { get; }
-        /// <summary>
-        /// The text of the command
-        /// </summary>
+
+        /// <inheritdoc/>
         public string Text { get; }
 
         /// <summary>

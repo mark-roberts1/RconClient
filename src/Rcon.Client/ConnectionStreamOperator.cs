@@ -10,25 +10,52 @@ using System.Threading.Tasks;
 
 namespace Rcon.Client
 {
+    /// <inheritdoc/>
     public class ConnectionStreamOperator : IConnectionStreamOperator
     {
         private bool disposed;
         private static int currentId = 0;
+        private static object _idLock = new object();
         private readonly BinaryReader _reader;
         private readonly BinaryWriter _writer;
-        private readonly ReaderWriterLockSlim _streamLock = new ReaderWriterLockSlim();
         private readonly AutoResetEvent _stopEvent = new AutoResetEvent(false);
         private readonly AutoResetEvent _stoppedEvent = new AutoResetEvent(false);
         private readonly Thread _readerThread;
         private readonly ConcurrentDictionary<int, RconResponse> _responses = new ConcurrentDictionary<int, RconResponse>();
+        private readonly IRconStream _rconStream;
 
-        public ConnectionStreamOperator(Stream stream)
+        private static readonly object _logLock = new object();
+        private Action<string> logAction;
+
+        /// <inheritdoc/>
+        public Action<string> LogAction
+        {
+            get
+            {
+                lock (_logLock)
+                {
+                    return logAction;
+                }
+            }
+            set
+            {
+                lock (_logLock)
+                {
+                    logAction = value;
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public ConnectionStreamOperator(IRconStream stream)
         {
             stream.ThrowIfNull();
-            
-            _reader = new BinaryReader(stream);
-            _writer = new BinaryWriter(stream);
-            
+
+            _rconStream = stream;
+
+            _reader = new BinaryReader(stream.GetBaseStream());
+            _writer = new BinaryWriter(stream.GetBaseStream());
+
             _readerThread = new Thread(CheckForData);
             _readerThread.Start();
         }
@@ -45,23 +72,26 @@ namespace Rcon.Client
 
             if (disposing)
             {
-                _stopEvent.Set();
-                _stoppedEvent.WaitOne();
-                
                 _reader.Dispose();
                 _writer.Dispose();
-                
+
+                _stopEvent.Set();
+                _stoppedEvent.WaitOne();
+
                 disposed = true;
             }
         }
 
-        public IRconResponse GetResponse(int commandId)
+        /// <inheritdoc/>
+        public IRconResponse GetResponse(int commandId, int timeout = 10000)
         {
             var response = _responses[commandId];
+            int waited = 0;
 
-            while (!response.Complete)
+            while (!response.Complete && waited < timeout)
             {
-                Thread.Sleep(5);
+                Thread.Sleep(1);
+                waited += 1;
             }
 
             _responses.TryRemove(commandId, out response);
@@ -69,30 +99,29 @@ namespace Rcon.Client
             return response;
         }
 
-        public int WriteMessage(IRconCommand command)
+        /// <inheritdoc/>
+        public int Write(IRconCommand command)
         {
-            _streamLock.EnterWriteLock();
+            LogAction?.Invoke($"Sending: {command.Text}");
 
-            int id = currentId++;
+            int id = 0;
+
+            lock (_idLock)
+            {
+                id = currentId++;
+            }
 
             _responses.TryAdd(id, new RconResponse(id));
 
-            try
-            {
-                var packet = RconPacket.From(id, command);
-                var terminator = RconPacket.CommandTerminator(id);
+            var packet = RconPacket.From(id, command);
+            var terminator = RconPacket.CommandTerminator(id);
 
-                _writer.Write(packet.GetBytes());
-                _writer.Flush();
-                _writer.Write(terminator.GetBytes());
-                _writer.Flush();
+            _writer.Write(packet.GetBytes());
+            _writer.Flush();
+            _writer.Write(terminator.GetBytes());
+            _writer.Flush();
 
-                return id;
-            }
-            finally
-            {
-                _streamLock.ExitWriteLock();
-            }
+            return id;
         }
 
         private void CheckForData()
@@ -101,9 +130,11 @@ namespace Rcon.Client
             {
                 try
                 {
-                    _streamLock.EnterReadLock();
+                    if (!_rconStream.DataAvailable) continue;
 
                     var packet = RconPacket.From(_reader);
+
+                    LogAction?.Invoke($"Received: {packet.Body}");
 
                     _responses[packet.CommandId].AddPacket(packet);
                 }
@@ -111,25 +142,19 @@ namespace Rcon.Client
                 {
                     continue;
                 }
-                finally
-                {
-                    _streamLock.ExitReadLock();
-                }
             }
 
             _stoppedEvent.Set();
         }
 
-        public Task<IRconResponse> GetResponseAsync(int commandId)
-            => GetResponseAsync(commandId, default);
-
+        /// <inheritdoc/>
         public async Task<IRconResponse> GetResponseAsync(int commandId, CancellationToken cancellationToken)
         {
             var response = _responses[commandId];
-
+            
             while (!response.Complete)
             {
-                await Task.Delay(5, cancellationToken);
+                await Task.Delay(1, cancellationToken);
             }
 
             _responses.TryRemove(commandId, out response);

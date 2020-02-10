@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.29613.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rcon.Client", "src\Rcon.Client\Rcon.Client.csproj", "{5CE4227C-9659-4BBD-9D78-864C6311C635}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rcon.Client.UnitTests", "src\Rcon.Client.UnitTests\Rcon.Client.UnitTests.csproj", "{EBEF145B-C630-40AE-9D4D-7D9A3C53303F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rcon.Client.UnitTests", "src\Rcon.Client.UnitTests\Rcon.Client.UnitTests.csproj", "{EBEF145B-C630-40AE-9D4D-7D9A3C53303F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rcon.Client.Console", "src\Rcon.Client.Console\Rcon.Client.Console.csproj", "{C63488DE-78C1-4D7A-86B5-2C92F4F7639B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{EBEF145B-C630-40AE-9D4D-7D9A3C53303F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EBEF145B-C630-40AE-9D4D-7D9A3C53303F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EBEF145B-C630-40AE-9D4D-7D9A3C53303F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C63488DE-78C1-4D7A-86B5-2C92F4F7639B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C63488DE-78C1-4D7A-86B5-2C92F4F7639B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C63488DE-78C1-4D7A-86B5-2C92F4F7639B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C63488DE-78C1-4D7A-86B5-2C92F4F7639B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

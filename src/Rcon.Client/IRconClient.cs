@@ -12,6 +12,10 @@ namespace Rcon.Client
     public interface IRconClient : IDisposable
     {
         /// <summary>
+        /// An optional log action
+        /// </summary>
+        Action<string> LogAction { get; set; }
+        /// <summary>
         /// Represents an RCON Connection
         /// </summary>
         IRconConnection Connection { get; }
@@ -19,8 +23,9 @@ namespace Rcon.Client
         /// Executes a command, and waits for a response.
         /// </summary>
         /// <param name="command">An RCON command</param>
+        /// <param name="timeout">An optional timeout parameter in milliseconds. Defaults to 10000.</param>
         /// <returns><see cref="IRconResponse"/></returns>
-        IRconResponse ExecuteCommand(IRconCommand command);
+        IRconResponse ExecuteCommand(IRconCommand command, int timeout = 10000);
         /// <summary>
         /// Executes a command asyncronously, and returns a response.
         /// </summary>
