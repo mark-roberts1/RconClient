@@ -30,28 +30,6 @@ namespace Rcon.Client
             Connection = new RconConnection(serverAddress, port);
         }
 
-        private static readonly object _logLock = new object();
-        private Action<string> logAction;
-        public Action<string> LogAction
-        {
-            get
-            {
-                lock (_logLock)
-                {
-                    return logAction;
-                }
-            }
-            set
-            {
-                lock (_logLock)
-                {
-                    logAction = value;
-                }
-
-                Connection.LogAction = value;
-            }
-        }
-
         /// <inheritdoc/>
         public IRconConnection Connection { get; }
 

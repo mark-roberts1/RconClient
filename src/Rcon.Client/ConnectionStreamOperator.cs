@@ -15,36 +15,14 @@ namespace Rcon.Client
     {
         private bool disposed;
         private static int currentId = 0;
-        private static object _idLock = new object();
         private readonly BinaryReader _reader;
         private readonly BinaryWriter _writer;
         private readonly AutoResetEvent _stopEvent = new AutoResetEvent(false);
         private readonly AutoResetEvent _stoppedEvent = new AutoResetEvent(false);
+        private readonly ReaderWriterLockSlim _streamLock = new ReaderWriterLockSlim();
         private readonly Thread _readerThread;
         private readonly ConcurrentDictionary<int, RconResponse> _responses = new ConcurrentDictionary<int, RconResponse>();
         private readonly IRconStream _rconStream;
-
-        private static readonly object _logLock = new object();
-        private Action<string> logAction;
-
-        /// <inheritdoc/>
-        public Action<string> LogAction
-        {
-            get
-            {
-                lock (_logLock)
-                {
-                    return logAction;
-                }
-            }
-            set
-            {
-                lock (_logLock)
-                {
-                    logAction = value;
-                }
-            }
-        }
 
         /// <inheritdoc/>
         public ConnectionStreamOperator(IRconStream stream)
@@ -102,24 +80,30 @@ namespace Rcon.Client
         /// <inheritdoc/>
         public int Write(IRconCommand command)
         {
-            LogAction?.Invoke($"Sending: {command.Text}");
-
             int id = 0;
 
-            lock (_idLock)
+            if (!_streamLock.TryEnterWriteLock(5000)) throw new TimeoutException("Timeout of 5 seconds elapsed before a write lock could be acquired for sending command.");
+
+            try
             {
-                id = currentId++;
+                currentId++;
+
+                id = currentId;
+
+                _responses.TryAdd(id, new RconResponse(id));
+
+                var packet = RconPacket.From(id, command);
+                var terminator = RconPacket.CommandTerminator(id);
+
+                _writer.Write(packet.GetBytes());
+                _writer.Flush();
+                _writer.Write(terminator.GetBytes());
+                _writer.Flush();
             }
-
-            _responses.TryAdd(id, new RconResponse(id));
-
-            var packet = RconPacket.From(id, command);
-            var terminator = RconPacket.CommandTerminator(id);
-
-            _writer.Write(packet.GetBytes());
-            _writer.Flush();
-            _writer.Write(terminator.GetBytes());
-            _writer.Flush();
+            finally
+            {
+                _streamLock.ExitWriteLock();
+            }
 
             return id;
         }
@@ -128,19 +112,28 @@ namespace Rcon.Client
         {
             while (!_stopEvent.WaitOne(1))
             {
+                bool lockAcquired = false;
+
                 try
                 {
                     if (!_rconStream.DataAvailable) continue;
 
-                    var packet = RconPacket.From(_reader);
+                    lockAcquired = _streamLock.TryEnterReadLock(10);
 
-                    LogAction?.Invoke($"Received: {packet.Body}");
+                    if (!lockAcquired) continue;
+
+                    var packet = RconPacket.From(_reader);
 
                     _responses[packet.CommandId].AddPacket(packet);
                 }
                 catch
                 {
                     continue;
+                }
+                finally
+                {
+                    if (lockAcquired)
+                        _streamLock.ExitReadLock();
                 }
             }
 
@@ -151,7 +144,7 @@ namespace Rcon.Client
         public async Task<IRconResponse> GetResponseAsync(int commandId, CancellationToken cancellationToken)
         {
             var response = _responses[commandId];
-            
+
             while (!response.Complete)
             {
                 await Task.Delay(1, cancellationToken);

@@ -12,10 +12,6 @@ namespace Rcon.Client
     public interface IRconClient : IDisposable
     {
         /// <summary>
-        /// An optional log action
-        /// </summary>
-        Action<string> LogAction { get; set; }
-        /// <summary>
         /// Represents an RCON Connection
         /// </summary>
         IRconConnection Connection { get; }

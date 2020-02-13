@@ -10,5 +10,6 @@ namespace Rcon.Client
         public const int SERVERDATA_EXECCOMMAND = 2;
         public const int SERVERDATA_AUTHRESPONSE = 2;
         public const int SERVERDATA_AUTH = 3;
+        public const int COMMAND_TERMINATOR = 9;
     }
 }

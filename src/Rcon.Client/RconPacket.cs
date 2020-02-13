@@ -15,7 +15,8 @@ namespace Rcon.Client
             if (packetType != CommandTypes.SERVERDATA_AUTH
                 && packetType != CommandTypes.SERVERDATA_AUTHRESPONSE
                 && packetType != CommandTypes.SERVERDATA_EXECCOMMAND
-                && packetType != CommandTypes.SERVERDATA_RESPONSE_VALUE)
+                && packetType != CommandTypes.SERVERDATA_RESPONSE_VALUE
+                && packetType != CommandTypes.COMMAND_TERMINATOR)
             {
                 throw new ArgumentException("packetType was not recognized.");
             }
@@ -41,7 +42,7 @@ namespace Rcon.Client
         {
             get
             {
-                return Body == "Unknown request 0";
+                return Body == $"Unknown request {CommandTypes.COMMAND_TERMINATOR}";
             }
         }
 
@@ -89,7 +90,7 @@ namespace Rcon.Client
 
         public static RconPacket CommandTerminator(int commandId)
         {
-            return new RconPacket(commandId, CommandTypes.SERVERDATA_RESPONSE_VALUE, string.Empty);
+            return new RconPacket(commandId, CommandTypes.COMMAND_TERMINATOR, string.Empty);
         }
 
         public static RconPacket From(int commandId, IRconCommand rconCommand)

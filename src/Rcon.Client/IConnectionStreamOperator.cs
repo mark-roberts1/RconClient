@@ -13,10 +13,6 @@ namespace Rcon.Client
     public interface IConnectionStreamOperator : IDisposable
     {
         /// <summary>
-        /// An optional log action
-        /// </summary>
-        Action<string> LogAction { get; set; }
-        /// <summary>
         /// Blocks the executing thread until a response is received from the RCON server.
         /// </summary>
         /// <param name="commandId">A reference to the command for which to receive a response.</param>

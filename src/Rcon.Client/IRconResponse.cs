@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace Rcon.Client
 {
@@ -25,11 +26,10 @@ namespace Rcon.Client
     public sealed class RconResponse : IRconResponse
     {
         private readonly ConcurrentQueue<RconPacket> _packets = new ConcurrentQueue<RconPacket>();
-        private readonly object _syncLock = new object();
-
         private string responseText;
         private bool didSetResponseText;
         private bool complete;
+        private readonly ReaderWriterLockSlim _completedLock = new ReaderWriterLockSlim();
 
         public int CommandId { get; }
 
@@ -49,16 +49,28 @@ namespace Rcon.Client
         {
             get
             {
-                lock (_syncLock)
+                if (!_completedLock.TryEnterReadLock(10)) return false;
+
+                try
                 {
                     return complete;
+                }
+                finally
+                {
+                    _completedLock.ExitReadLock();
                 }
             }
             private set
             {
-                lock (_syncLock)
+                while (!_completedLock.TryEnterWriteLock(1)) { }
+
+                try
                 {
                     complete = value;
+                }
+                finally
+                {
+                    _completedLock.ExitWriteLock();
                 }
             }
         }

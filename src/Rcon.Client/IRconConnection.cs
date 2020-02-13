@@ -17,10 +17,6 @@ namespace Rcon.Client
         /// </summary>
         bool IsOpen { get; }
         /// <summary>
-        /// An optional log action
-        /// </summary>
-        Action<string> LogAction { get; set; }
-        /// <summary>
         /// An operator to perform actions over the connected <see cref="NetworkStream"/>
         /// </summary>
         IConnectionStreamOperator StreamOperator { get; }

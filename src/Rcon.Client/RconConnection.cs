@@ -16,30 +16,6 @@ namespace Rcon.Client
 
         private bool disposed;
 
-        private static readonly object _logLock = new object();
-        private Action<string> logAction;
-
-        /// <inheritdoc/>
-        public Action<string> LogAction 
-        {
-            get
-            {
-                lock (_logLock)
-                {
-                    return logAction;
-                }
-            }
-            set
-            {
-                lock (_logLock)
-                {
-                    logAction = value;
-                }
-
-                if (StreamOperator != null) StreamOperator.LogAction = value;
-            } 
-        }
-
         public RconConnection(string serverAddress, int port)
         {
             _serverAddress = serverAddress.ThrowIfNullOrWhitespace(nameof(serverAddress));
@@ -76,7 +52,6 @@ namespace Rcon.Client
             {
                 Close();
                 _tcpClient.Dispose();
-                LogAction = null;
                 disposed = true;
             }
         }
@@ -84,27 +59,17 @@ namespace Rcon.Client
         /// <inheritdoc/>
         public void Open()
         {
-            LogAction?.Invoke($"Connecting to {_serverAddress}:{_port}");
-
             _tcpClient.Connect(_serverAddress, _port);
 
-            StreamOperator = new ConnectionStreamOperator((RconStream)_tcpClient.GetStream())
-            {
-                LogAction = LogAction
-            };
+            StreamOperator = new ConnectionStreamOperator((RconStream)_tcpClient.GetStream());
         }
 
         /// <inheritdoc/>
         public async Task OpenAsync()
         {
-            LogAction?.Invoke($"Connecting to {_serverAddress}:{_port}");
-
             await _tcpClient.ConnectAsync(_serverAddress, _port);
 
-            StreamOperator = new ConnectionStreamOperator((RconStream)_tcpClient.GetStream())
-            {
-                LogAction = LogAction
-            };
+            StreamOperator = new ConnectionStreamOperator((RconStream)_tcpClient.GetStream());
         }
     }
 }
