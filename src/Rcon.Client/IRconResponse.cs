@@ -42,7 +42,7 @@ namespace Rcon.Client
         {
             _packets.Enqueue(packet);
 
-            Complete = packet.IsResponseTerminator;
+            Complete = true;
         }
 
         internal bool Complete

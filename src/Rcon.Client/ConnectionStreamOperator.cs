@@ -14,12 +14,11 @@ namespace Rcon.Client
     public class ConnectionStreamOperator : IConnectionStreamOperator
     {
         private bool disposed;
-        private static int currentId = 0;
+        private int currentId = 0;
         private readonly BinaryReader _reader;
         private readonly BinaryWriter _writer;
         private readonly AutoResetEvent _stopEvent = new AutoResetEvent(false);
         private readonly AutoResetEvent _stoppedEvent = new AutoResetEvent(false);
-        private readonly ReaderWriterLockSlim _streamLock = new ReaderWriterLockSlim();
         private readonly Thread _readerThread;
         private readonly ConcurrentDictionary<int, RconResponse> _responses = new ConcurrentDictionary<int, RconResponse>();
         private readonly IRconStream _rconStream;
@@ -34,7 +33,11 @@ namespace Rcon.Client
             _reader = new BinaryReader(stream.GetBaseStream());
             _writer = new BinaryWriter(stream.GetBaseStream());
 
-            _readerThread = new Thread(CheckForData);
+            _readerThread = new Thread(CheckForData)
+            {
+                IsBackground = true
+            };
+
             _readerThread.Start();
         }
 
@@ -82,28 +85,17 @@ namespace Rcon.Client
         {
             int id = 0;
 
-            if (!_streamLock.TryEnterWriteLock(5000)) throw new TimeoutException("Timeout of 5 seconds elapsed before a write lock could be acquired for sending command.");
+            currentId++;
 
-            try
-            {
-                currentId++;
+            id = currentId;
 
-                id = currentId;
+            _responses.TryAdd(id, new RconResponse(id));
 
-                _responses.TryAdd(id, new RconResponse(id));
+            var packet = RconPacket.From(id, command);
+            var terminator = RconPacket.CommandTerminator(id);
 
-                var packet = RconPacket.From(id, command);
-                var terminator = RconPacket.CommandTerminator(id);
-
-                _writer.Write(packet.GetBytes());
-                _writer.Flush();
-                _writer.Write(terminator.GetBytes());
-                _writer.Flush();
-            }
-            finally
-            {
-                _streamLock.ExitWriteLock();
-            }
+            _writer.Write(packet.GetBytes());
+            _writer.Flush();
 
             return id;
         }
@@ -112,15 +104,9 @@ namespace Rcon.Client
         {
             while (!_stopEvent.WaitOne(1))
             {
-                bool lockAcquired = false;
-
                 try
                 {
                     if (!_rconStream.DataAvailable) continue;
-
-                    lockAcquired = _streamLock.TryEnterReadLock(10);
-
-                    if (!lockAcquired) continue;
 
                     var packet = RconPacket.From(_reader);
 
@@ -129,11 +115,6 @@ namespace Rcon.Client
                 catch
                 {
                     continue;
-                }
-                finally
-                {
-                    if (lockAcquired)
-                        _streamLock.ExitReadLock();
                 }
             }
 
